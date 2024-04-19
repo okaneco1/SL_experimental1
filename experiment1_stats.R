@@ -24,24 +24,25 @@ full_data <- read_csv("Experiment_1_full_data_table.csv")
 colnames(full_data)[20] <- "weight_gain"
 # removing "_mean" from column names
 colnames(full_data) <- sub("_mean", "", colnames(full_data))
-# change fasting period column name
+# change column names
 colnames(full_data)[colnames(full_data) == "Fasting period(days)"] <- "fasting_period"
 colnames(full_data)[colnames(full_data) == "Weight loss(g)"] <- "weight_loss"
+colnames(full_data)[colnames(full_data) == "Tube ID"] <- "sample"
 # columnb for temp as a factor
 full_data$temp_f <- as.factor(full_data$temp)
+
+# using only lake trout and sea lamprey reads
+full_data <- full_data[,c(1:2,6:7,14:ncol(full_data))]
 # column for total reads in sample
-full_data$total_reads <- rowSums(full_data[, 2:13], na.rm = TRUE)
+full_data$total_reads <- rowSums(full_data[, 2:4], na.rm = TRUE)
+
 
 
 #---- combining host fish reads
 
 # all trout
 full_data <- full_data %>%
-  mutate(all_trout = Salvelinus_namaycush + Salmonidae_unclassified + Salvelinus_unclassified)
-
-# all host fish
-full_data <- full_data %>%
-  mutate(all_host_fish = Salvelinus_namaycush + Catostomus_commersonii + Oncorhynchus_mykiss + Salmonidae_unclassified + Catostomus_catostomus + Salvelinus_unclassified)
+  mutate(all_trout = Salvelinus_namaycush + Salmonidae_unclassified)
 
 
 
@@ -60,7 +61,7 @@ sd(full_data$`Initial Weight(g)`) # 0.9888862
 #----------- ANOVA and pairwise comparisons -----------
 
 aov1 <- aov(all_trout ~ as.factor(temp), data = full_data) 
-aov2 <- aov(all_trout/total_reads ~ temp_f * as.factor(fasting_period), data = full_data) 
+aov2 <- aov(all_trout ~ temp_f * as.factor(fasting_period), data = full_data) 
 aov3 <- aov(all_trout ~ as.factor(temp) * as.factor(fasting_period) + weight_gain, data = full_data)
 #aov2_log <- aov(log(all_trout) ~ as.factor(temp) * as.factor(fasting_period), data = full_data) 
 
@@ -86,11 +87,11 @@ library(agricolae)
 TukeyHSD(aov2)
 # subsets
 TukeyHSD(aov2, which = "as.factor(fasting_period)")
-TukeyHSD(aov2, which = "as.factor(temp_f):as.factor(fasting_period)")
+TukeyHSD(aov2, which = "temp_f:as.factor(fasting_period)")
 
 # only sig dif comparisons from interactions
 tukey_results <- TukeyHSD(aov2)
-interaction_results <- tukey_results$`as.factor(temp):as.factor(fasting_period)`
+interaction_results <- tukey_results$`temp_f:as.factor(fasting_period)`
 # convert to dataframe
 int_df <- as.data.frame(interaction_results)
 int_df_sig <- filter(int_df, `p adj` < 0.05)
@@ -104,49 +105,24 @@ int_df_sig_ordered <- int_df_sig[order(int_df_sig$diff), ]
 HSD.test(aov2, trt = c("as.factor(temp)", "as.factor(fasting_period)"), console = TRUE)
 # plot
 par(mar = c(4.5, 7, 3, 2))
-plot(TukeyHSD(aov2, which = "as.factor(temp):as.factor(fasting_period)"), las = 2)
+#plot(TukeyHSD(aov2, which = "as.factor(temp):as.factor(fasting_period)"), las = 2)
 
 
 
 
 #--------------- Linear Regressions ---------
-# linear models
-lm <- lm(all_trout ~ temp * fasting_period, data = full_data)
-lm2 <- lm(Salvelinus_namaycush ~ temp + fasting_period, data = full_data)
-lm3 <- lm(Salvelinus_namaycush ~ temp, data = full_data)
-lm4 <- lm(Salvelinus_namaycush ~ fasting_period, data = full_data)
-lm5 <- lm(Salvelinus_namaycush ~ temp * fasting_period + weight_gain, data = full_data)
-lm6 <- lm(Salvelinus_namaycush ~ temp * fasting_period * weight_gain, data = full_data)
-lm7 <- lm(Salvelinus_namaycush ~ temp + fasting_period + weight_gain + temp*fasting_period, data = full_data)
-lm8 <- lm(weight_loss ~ fasting_period * temp, data = full_data)
 
-#AIC(lm, lm2, lm3, lm4, lm5, lm6, lm7) # lm5 and lm7 equivalent
-
-# comparing nested models
-anova(lm, lm5) #not significant
-
-anova(lm) # significance for fasting period and interaction term
-
-# regression for subsets of temperature
-lm_5 <- lm(all_trout ~ as.factor(fasting_period), data = full_data, subset = (temp == 5))
-lm_10 <- lm(all_trout ~ as.factor(fasting_period), data = full_data, subset = (temp == 10))
-lm_15 <- lm(all_trout ~ as.factor(fasting_period), data = full_data, subset = (temp == 15))
-
-anova(lm_5) # 0.000175
-anova(lm_10) # 0.016817
-anova(lm_15) # 0.71125
-
-#-------- weight change models
+# weight change models
 
 # weight gain and sequence read count
 lm_wg <- lm(all_trout/total_reads ~ weight_gain, data = full_data)
 summary(lm_wg)
 
 # weight loss and fasting period
-lm_wl_fp <- lm(`Weight loss(g)` ~ as.factor(fasting_period), data = full_data)
+lm_wl_fp <- lm(weight_loss ~ as.factor(fasting_period), data = full_data)
 summary(lm_wl_fp) # 0.0278
 anova(lm_wg_temp)
-TukeyHSD(aov(lm(`Weight loss(g)` ~ as.factor(fasting_period), data = full_data)))
+TukeyHSD(aov(lm(weight_loss ~ as.factor(fasting_period), data = full_data)))
 
 # weight gain and temperature
 lm_wg_temp <- lm(weight_gain ~ as.factor(temp), data = full_data)
@@ -156,30 +132,25 @@ TukeyHSD(aov(lm(weight_gain ~ as.factor(temp), data = full_data)))
 
 
 
-#----------------- PERMANOVA
-library(vegan)
-
-# simple example
-
-
-
-
-
-
-
 #----------------- VISUALIZATIONS ------------------------
 
 # Full Comparison Between Temp and Fasting Period
 
+# viewing data
+sorted_data <- full_data %>%
+  dplyr::select(sample, all_trout, Petromyzontidae_unclassified, temp, fasting_period) %>%
+  dplyr::arrange(temp, fasting_period)
+
+
 # first split by temp
 custom_labels <- c('5' = 'Temperature = 5°C', '10' = 'Temperature = 10°C', '15' = 'Temperature = 15°C')
 
-ggplot(full_data, aes(x = fasting_period, y = total_reads, color = factor(temp))) +
+ggplot(full_data, aes(x = fasting_period, y = all_trout/total_reads, color = factor(temp))) +
   geom_boxplot(aes(group = interaction(fasting_period, factor(temp))),
                alpha = 0.5, position = position_dodge(width = 3), 
                outlier.shape = NA,  coef = Inf) +
   geom_smooth(method = "lm", aes(group = factor(temp)), formula = y ~ x, se = FALSE) +
-  labs(color = "Temperature (°C)", y = "Relative Read Abundance of Lake Trout", x = "Fasting Period (Days)") +
+  labs(color = "Temperature (°C)", y = "Total Lake Trout Reads", x = "Fasting Period (Days)") +
   scale_y_continuous(limits = c(0, NA)) +
   scale_color_brewer(palette = "Dark2") +
   scale_x_continuous(breaks = c(0, 5, 10, 20, 30)) +
