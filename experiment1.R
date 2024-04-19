@@ -49,33 +49,6 @@ for (i in ncol(com_mat):3) { # looped in reverse to avoid missing columns during
 # removed 19 columns
 
 
-#---------- Comparing OTUs and Filtering
-
-# set up data frame
-df_sum <- data.frame(OTU = colnames(com_mat[2:ncol(com_mat)]))
-# loop through for sums
-for (i in 3:ncol(com_mat)) {
-  df_sum$sequences[i-1] <- sum(com_mat[,i])
-}
-# order based upon sum
-df_sum <- df_sum[order(df_sum[[2]],  decreasing = TRUE), ]
-
-# visualize the data
-df_sum$OTU <- factor(df_sum$OTU, levels = unique(df_sum$OTU))
-ggplot(df_sum, aes(x = OTU, y = sequences)) +
-  geom_bar(stat = "identity") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# a lot of these sequences are likely contamination or incorrect, can remove some
-df_sum_clean <- filter(df_sum, df_sum$sequences > 1400) # number just higher than clear contamination
-
-# apply these cleaned OTUs to community matrix (keep only selected OTUs)
-selected_otus <- df_sum_clean$OTU
-com_mat_filtered <- com_mat %>% 
-  select(all_of(selected_otus)) %>%
-  mutate(com_mat[1], .before = 1) # add back sample names (first column)
-
-
 #---------- Merge Data
 # add temperature to dissection data and combine
 dissection_data_5C <- mutate(dissection_data_5C, temp = 5, .after = 4)
@@ -85,7 +58,7 @@ dissection_data <- rbind(dissection_data_5C, dissection_data_10C, dissection_dat
 
 # merge with community matrix
 full_data <- inner_join(com_mat_filtered, dissection_data, by = 'Tube ID')
-full_data <- full_data[-(which(grepl("2023", full_data$`Tube ID`))), ] # remove single 2023 experimental sample
+#full_data <- full_data[-(which(grepl("2023", full_data$`Tube ID`))), ] # remove single 2023 experimental sample
 
 # write out this table for use in other scripts:
 full_data <- as.data.frame(full_data)
