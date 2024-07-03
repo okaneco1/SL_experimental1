@@ -10,7 +10,6 @@ library(readxl)
 library(nnet)
 library(broom)
 library(patchwork)
-library(MASS)
 library(sjPlot)
 library(brglm2)
 library(lmtest)
@@ -226,7 +225,8 @@ anova(m_final_fast, m_final, test = "LRT") # yes
 
 #------ can now look for patterns where detection is in *at least one* replicate
 # create new columns (and label)
-full_detection_data$one_det <- ifelse(full_detection_data$combined_detection >= 1, 1, 0)
+full_detection_data$one_det <- ifelse(full_detection_data$combined_detection == 1 |
+                                        full_detection_data$combined_detection == 2, 1, 0)
 full_detection_data$one_det <- factor(full_detection_data$one_det,
                                       levels = c(0, 1),
                                       labels = c("no detection", "detection"))
@@ -333,7 +333,10 @@ ggplot(full_detection_data, aes(x = factor(temp), fill = factor(combined_detecti
   facet_wrap(vars(fasting_period), labeller = labeller(temp = fasting_labels), nrow = 1) +
   theme(
     strip.text = element_text(size = 10),
-    plot.title = element_text(face = "bold", size = 12))
+    plot.title = element_text(face = "bold"), 
+    axis.title.x = element_text(face = "bold"), 
+    axis.title.y = element_text(face = "bold"),
+    legend.title = element_text(face = "bold"))
 
 
 # combining plots
@@ -350,30 +353,12 @@ library(unmarked)
 detections <- data.frame(rep1 = full_detection_data$detection_rep1,
                          rep2 = full_detection_data$detection_rep2)
 
-# frame object to hold the data
-simple_occu <- unmarkedFrameOccu(y = as.matrix(detections)) 
-# check frame object
-summary(simple_occu)
-
-# basic occupancy model, intercepts only
-occu_m1 <- occu(formula = ~1 # detection formula
-                ~1, # occupancy formula, 
-                data = simple_occu)
-summary(occu_m1) # show AIC, estimates (on logit scale), SE, z-scores
-
-# back transform (out of logit scale)
-backTransform(occu_m1, type = "state")
-backTransform(occu_m1, type = "det")
-
-
-
-
 # adding covariates, two types:
 #--- observation level (weight gain?)
 #--- site level (temp and fasting period?)
 
 # set up site covariates (can think of these as don't change between replicates)
-site_covs <- as.data.frame(full_detection_data[ ,c(14,20)]) # temp and fasting period
+site_covs <- as.data.frame(full_detection_data[ ,c(14,18:20)]) # temp and fasting period
 #site_covs$temp <- as.numeric(as.character(site_covs$temp))
 site_covs$fasting_period <- as.numeric(as.character(site_covs$fasting_period))
 
@@ -390,29 +375,104 @@ occu_m2 <- occu(formula = ~ temp + fasting_period ~1, data = cov_occu)
 occu_m3 <- occu(formula = ~ temp * fasting_period ~1, data = cov_occu)
 occu_m4 <- occu(formula = ~ fasting_period ~1, data = cov_occu)
 occu_m5 <- occu(formula = ~ temp ~1, data = cov_occu)
+occu_m6 <- occu(formula = ~ temp + fasting_period + weight_gain ~1, data = cov_occu)
+occu_m7 <- occu(formula = ~ weight_gain ~1, data = cov_occu)
+occu_m8 <- occu(formula = ~ temp + fasting_period + weight_gain + days_attached ~1, data = cov_occu)
+occu_m9 <- occu(formula = ~ fasting_period + days_attached ~1, data = cov_occu)
 
 # checking fit
 fit <- fitList('psi(.)p(.)' = occu_null,
                'psi(.)p(temp + fasting_period)' = occu_m2,
                'psi(.)p(temp + fasting_period + temp*fasting_period)' = occu_m3,
                'psi(.)p(fasting_period)' = occu_m4,
-               'psi(.)p(temp)' = occu_m5)
+               'psi(.)p(temp)' = occu_m5,
+               'psi(.)p(temp + fasting_period + weight_gain)' = occu_m6,
+               'psi(.)p(weight_gain)' = occu_m7,
+               'psi(.)p(temp + fasting_period + weight_gain + days_attached)' = occu_m8,
+               'psi(.)p(fasting_period + days_attached)' = occu_m9)
 modSel(fit)
 
-# back transform
-backTransform(occu_m4, type = "state")
-backTransform(occu_m4, type = "det")
+# looking at just fasting period model
+preds1 <- predict(occu_m4, type ="det", new = data.frame(fasting_period = c(0:30)))
+preds1$fasting_period <- seq(0, 30, by = 1)
 
-backTransform(occu_null, type = "det")
-
-preds <- predict(occu_m4, type ="det", new = data.frame(fasting_period = c(0:30)))
-
-plot(preds$Predicted ~ c(0:30))
-
-ggplot(data = preds, aes(x = c(0:30), y = Predicted)) +
+ggplot(data = preds1, aes(x = fasting_period, y = Predicted)) +
   geom_smooth(stat = "smooth") +
-  geom_ribbon(data = preds, aes(ymin = preds$lower, ymax = preds$upper), alpha = 0.2)
-# stacked proportion bar charts (colors are detections)
-# simple descriptive summaries (# of samples that detected in both, single, etc)
-# choose 
+  scale_y_continuous(limits = c(0.4, 1)) +
+  geom_ribbon(data = preds1, aes(ymin = lower, ymax = upper), alpha = 0.2) +
+  labs(title = "Predicted Host Detection Probability",
+       x = "Fasting Period (Days)",
+       y = "Detection Probability") +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold"), 
+        axis.title.x = element_text(face = "bold"), 
+        axis.title.y = element_text(face = "bold"))
+
+
+
+
+# looking at fasting period + days attached model
+
+# back transform
+backTransform(occu_m9, type = "state")
+
+# generate a prediction grid for both variables
+days_attached <- seq(0, 10, length.out = 100)
+fasting_period <- seq(0, 30, length.out = 100)
+
+# create an expanded data frame
+pred_grid <- expand.grid(days_attached = days_attached, fasting_period = fasting_period)
+
+# set up predictions
+preds2 <- predict(occu_m9, type = "det", newdata = pred_grid)
+pred_grid$preds <- preds2$Predicted # add to grid
+# visualize data
+
+# heatmap
+ggplot(pred_grid, aes(x = fasting_period, y = days_attached, fill = preds)) +
+  geom_tile() +
+  scale_fill_gradientn(colors = c("blue", "yellow", "red")) +
+  labs(title = "Predicted Host Detection Probability",
+       x = "Fasting Period (Days)",
+       y = "Days Attached",
+       fill = "Probability") +
+  theme_minimal()
+
+# contour plot
+ggplot(pred_grid, aes(x = fasting_period, y = days_attached, z = preds)) +
+  geom_contour_filled() +
+  labs(title = "Predicted Host Detection Probability",
+       x = "Fasting Period (Days)",
+       y = "Days Attached",
+       fill = "Probability") +
+  theme_minimal()
+
+
+
+
+# Occupancy Model for a Single Replicate
+detections_single <- data.frame(rep1 = full_detection_data$detection_rep1)
+# Create the occupancy frame object with the modified detection data
+cov_count_single <- unmarkedFramePCount(y = detections_single, siteCovs = site_covs)
+summary(cov_count_single)
+
+# Set up the model using the single replicate
+count_m4_single <- pcount(formula = ~ fasting_period ~1, data = cov_count_single)
+
+# Checking fit with only the single replicate model
+fit_single <- fitList('lambda(.)p(fasting_period)' = count_m4_single)
+
+# Make predictions with the single replicate model
+preds_single <- predict(count_m4_single, type = "det", newdata = data.frame(fasting_period = c(0:30)))
+preds_single$fasting_period <- seq(0, 30, by = 1)
+
+# Plot predictions
+ggplot(data = preds_single, aes(x = fasting_period, y = Predicted)) +
+  geom_smooth(stat = "smooth") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+  labs(title = "Predicted Host Detection Probability with Single Replicate",
+       x = "Fasting Period (Days)",
+       y = "Detection Probability") +
+  theme_minimal()
+
 
