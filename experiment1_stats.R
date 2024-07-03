@@ -97,6 +97,7 @@ int_df <- as.data.frame(interaction_results)
 int_df_sig <- filter(int_df, `p adj` < 0.05)
 #ordered by diff
 int_df_sig_ordered <- int_df_sig[order(int_df_sig$diff), ]
+
 #--- write out
 #int_df_sig_ordered$comparisons <- row.names(int_df_sig_ordered)
 #write_csv(int_df_sig_ordered, "sig_dif_interactions.csv")
@@ -121,7 +122,7 @@ summary(lm_wg)
 # weight loss and fasting period
 lm_wl_fp <- lm(weight_loss ~ as.factor(fasting_period), data = full_data)
 summary(lm_wl_fp) # 0.0278
-anova(lm_wg_temp)
+anova(lm_wl_fp)
 TukeyHSD(aov(lm(weight_loss ~ as.factor(fasting_period), data = full_data)))
 
 # weight gain and temperature
@@ -175,10 +176,17 @@ ggplot(full_data, aes(x = temp, y = all_trout, fill = factor(fasting_period))) +
   theme(strip.text = element_text(face = "bold", size = 12))
 
 # another way to plot
-ggline(full_data, x = "fasting_period", y = "all_trout", color = "temp_f", add = c("mean_se")) +
+ggline(full_data, x = "fasting_period", y = "all_trout", 
+       color = "temp_f", add = c("mean_se"), position = position_dodge(width = 0.1)) +
   labs(y = "Lake Trout Sequence Read Count", 
        x = "Fasting Period (Days)",
+       title = "Lake Trout Sequence Read Count vs Fasting Days",
        color = "Temperature (°C)") +
+  theme(legend.position = c(0.7, 0.8),
+        plot.title = element_text(face = "bold"),  
+        axis.title.x = element_text(face = "bold"),  
+        axis.title.y = element_text(face = "bold"),
+        legend.title = element_text(face = "bold")) +
   scale_color_brewer(palette = "Set2")
 
 
