@@ -13,6 +13,7 @@ library(patchwork)
 library(sjPlot)
 library(brglm2)
 library(lmtest)
+library(geomtextpath)
 
 
 
@@ -440,12 +441,16 @@ ggplot(pred_grid, aes(x = fasting_period, y = days_attached, fill = preds)) +
 
 # contour plot
 ggplot(pred_grid, aes(x = fasting_period, y = days_attached, z = preds)) +
-  geom_contour_filled() +
+  geom_contour_filled(breaks = seq(0, 1, by = 0.1)) +
+  geom_textcontour(linecolour = "#242424", textcolour = "#242424") + 
   labs(title = "Predicted Host Detection Probability",
        x = "Fasting Period (Days)",
        y = "Days Attached",
        fill = "Probability") +
-  theme_minimal()
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 16),
+        axis.title.x = element_text(face = "bold", size = 12),
+        axis.title.y = element_text(face = "bold", size = 12))
 
 
 
