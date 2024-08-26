@@ -21,13 +21,14 @@ full_data <- read_csv("Experiment_1_full_data_table.csv")
 # data adjustments - combining S. namaycush and Salmonidae reads
 #full_data <- full_data %>%
   #mutate(trout = Salvelinus_namaycush + Salmonidae_unclassified)
-colnames(full_data)[20] <- "weight_gain"
+colnames(full_data)[21] <- "weight_gain"
 # removing "_mean" from column names
 colnames(full_data) <- sub("_mean", "", colnames(full_data))
 # change column names
 colnames(full_data)[colnames(full_data) == "Fasting period(days)"] <- "fasting_period"
 colnames(full_data)[colnames(full_data) == "Weight loss(g)"] <- "weight_loss"
 colnames(full_data)[colnames(full_data) == "Tube ID"] <- "sample"
+colnames(full_data)[colnames(full_data) == "Days Attached"] <- "days_attached"
 # columnb for temp as a factor
 full_data$temp_f <- as.factor(full_data$temp)
 
@@ -189,7 +190,12 @@ ggline(full_data, x = "fasting_period", y = "all_trout",
         legend.title = element_text(face = "bold")) +
   scale_color_brewer(palette = "Set2")
 
+# checking out outliers in 15°C / 30 days fasting
+ggplot(full_data, aes(x = fasting_period, y = all_trout, color = temp_f)) +
+  geom_jitter(width = 0.4, height = 0.1)
 
+filter(full_data, temp == 15, )
+full_data[full_data$fasting_period == 30 & full_data$temp_f == 15 & full_data$all_trout > 5000,]
 
  
 # weight gain comparison
@@ -205,9 +211,9 @@ ggplot(full_data, aes(x = weight_gain, y = Salvelinus_namaycush)) +
 # does not seem to be relationship between weight gain and sequence read count
 
 # weight loss and fasting period
-cor_coeff_wl <- cor(full_data$`Weight loss(g)`, full_data$Salvelinus_namaycush, use = "complete.obs")
+cor_coeff_wl <- cor(full_data$weight_loss, full_data$Salvelinus_namaycush, use = "complete.obs")
 
-ggplot(full_data, aes(x = fasting_period, y = `Weight loss(g)`)) +
+ggplot(full_data, aes(x = fasting_period, y = weight_loss)) +
   geom_boxplot(aes(group = fasting_period), outlier.shape = NA) +
   #geom_smooth(method = "lm", se = FALSE, color = "deepskyblue") +
   geom_jitter(width = 0.2, alpha = 0.3) +
@@ -221,22 +227,79 @@ ggplot(full_data, aes(x = temp, y = weight_gain)) +
   #geom_smooth(method = "lm", se = FALSE, color = "deepskyblue") +
   geom_jitter(width = 0.2, alpha = 0.3) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "darkgreen", alpha = 0.5) +
-  labs(x = "Temperature (°C)", y = "Weight Gain (g)") +
+  labs(x = "Temperature (°C)", y = "Weight Gain (g)",
+       title = "Weight Gain (g) vs Temperature (°C) in Sea Lamprey") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16), 
+    axis.title.x = element_text(face = "bold"),          
+    axis.title.y = element_text(face = "bold")           
+  )
+
+temp_weight_anova <- aov(weight_gain ~ as.factor(temp), data = full_data)
+summary(temp_weight_anova)
+
+tukey_results <- TukeyHSD(temp_weight_anova)
+plot(tukey_results)
+
+
+# ------- LINEAR MODELS COMPARING READ COUNT
+library(MASS)
+library(pscl)
+
+# viewing data
+hist(log(full_data$all_trout))
+hist(full_data$all_trout)
+
+# plot each variable against read count 
+ggplot(full_data, aes(x = weight_gain, y = all_trout)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal()
+ggplot(full_data, aes(x = fasting_period, y = all_trout)) +
+  geom_point() +
+  geom_smooth(method = "loess", se = FALSE, span = 1) + # span increased to desensitize fit
+  labs(x = "Fasting Period (Days)", y = "Lake Trout Read Count",
+       title = "Lake Trout Sequence Reads per Fasting Period") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14), 
+    axis.title.x = element_text(face = "bold", size = 13),          
+    axis.title.y = element_text(face = "bold", size = 13)           
+  )
+ggplot(full_data, aes(x = temp, y = all_trout)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
   theme_minimal()
 
 
-# more in-depth plot of Tukey HSD interaction results
-tukey_result <- TukeyHSD(aov2, "as.factor(temp):as.factor(fasting_period)")
-tukey_df <- as.data.frame(tukey_result$`as.factor(temp):as.factor(fasting_period)`)
-tukey_df$comparison <- rownames(tukey_df)
-# identify non-zero crossing intervals
-tukey_df$highlight <- ifelse(tukey_df$lwr > 0 | tukey_df$upr < 0, "Significant", "Non-Significant")
-# plot
-ggplot(tukey_df, aes(x = comparison, y = diff)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = lwr, ymax = upr, color = highlight), width = 0.2) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  coord_flip() +
-  labs(color = "") +
-  geom_hline(yintercept = 0, color = "black", alpha = 0.5) +
-  scale_color_manual(values = c("Significant" = "red", "Non-Significant" = "black")) 
+# setting up linear models
+lm1 <- lm(all_trout ~ weight_gain + fasting_period + temp + days_attached, data = full_data)
+poisson_model <- glm(all_trout ~ weight_gain + fasting_period + temp + days_attached, family = poisson, data = full_data)
+negbin_lm <- glm.nb(round(all_trout) ~ weight_gain + temp + fasting_period + days_attached, data = full_data)
+zinb_lm <- zeroinfl(round(all_trout) ~ weight_gain + fasting_period + as.factor(temp) + days_attached | 1, 
+                    data = full_data, 
+                    dist = "negbin")
+
+# summaries
+summary(lm1)
+summary(poisson_model)
+summary(negbin_lm)
+summary(zinb_lm)
+
+# AIC/model comparisons
+AIC(lm1)
+AIC(poisson_model)
+AIC(negbin_lm)
+AIC(zinb_lm)
+
+vuong(zinb_lm, negbin_lm)
+
+# as there are not many zeros in the averaged read count data (as compared to 
+# replicate-specific data), the negative binomial model is preferred over the
+# zero-inflated negative binomial
+
+(1 - exp(-0.021))*100 # 2.078104
+
+
+
