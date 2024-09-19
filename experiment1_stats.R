@@ -227,14 +227,34 @@ ggplot(full_data, aes(x = temp, y = weight_gain)) +
   #geom_smooth(method = "lm", se = FALSE, color = "deepskyblue") +
   geom_jitter(width = 0.2, alpha = 0.3) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "darkgreen", alpha = 0.5) +
-  labs(x = "Temperature (°C)", y = "Weight Gain (g)",
-       title = "Weight Gain (g) vs Temperature (°C) in Sea Lamprey") +
+  labs(x = "Temperature (°C)", y = "Weight Gain (g)") +
   theme_minimal() +
   theme(
     plot.title = element_text(face = "bold", size = 16), 
     axis.title.x = element_text(face = "bold"),          
     axis.title.y = element_text(face = "bold")           
   )
+
+
+# weight and days attached
+correlation <- cor(full_data$days_attached, full_data$weight_gain)
+
+ggplot(full_data, aes(x = days_attached, y = weight_gain)) +
+  geom_point(aes(group = temp)) +
+  geom_smooth(method = "lm", se = FALSE, color = "deepskyblue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgreen", alpha = 0.5) +
+  labs(x = "Days Attached", y = "Weight Gain (g)") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16), 
+    axis.title.x = element_text(face = "bold"),          
+    axis.title.y = element_text(face = "bold")           
+  ) +
+  annotate("text", x = max(full_data$days_attached) - 5, y = max(full_data$weight_gain) - 1, 
+           label = paste("Correlation: ", round(correlation, 2)), 
+           color = "black", size = 4, hjust = 1)
+
+
 
 temp_weight_anova <- aov(weight_gain ~ as.factor(temp), data = full_data)
 summary(temp_weight_anova)
@@ -274,10 +294,10 @@ ggplot(full_data, aes(x = temp, y = all_trout)) +
 
 
 # setting up linear models
-lm1 <- lm(all_trout ~ weight_gain + fasting_period + temp + days_attached, data = full_data)
-poisson_model <- glm(all_trout ~ weight_gain + fasting_period + temp + days_attached, family = poisson, data = full_data)
-negbin_lm <- glm.nb(round(all_trout) ~ weight_gain + temp + fasting_period + days_attached, data = full_data)
-zinb_lm <- zeroinfl(round(all_trout) ~ weight_gain + fasting_period + as.factor(temp) + days_attached | 1, 
+lm1 <- lm(all_trout ~ weight_gain + fasting_period * temp + days_attached, data = full_data)
+poisson_model <- glm(all_trout ~ weight_gain + fasting_period * temp + days_attached, family = poisson, data = full_data)
+negbin_lm <- glm.nb(round(all_trout) ~ weight_gain + temp * fasting_period + days_attached, data = full_data)
+zinb_lm <- zeroinfl(round(all_trout) ~ weight_gain + fasting_period * as.factor(temp) + days_attached | 1, 
                     data = full_data, 
                     dist = "negbin")
 
@@ -300,6 +320,79 @@ vuong(zinb_lm, negbin_lm)
 # zero-inflated negative binomial
 
 (1 - exp(-0.021))*100 # 2.078104
+
+
+full_data %>%
+  group_by(temp, fasting_period) %>%
+  summarize(
+    mean_weight_gain = mean(weight_gain, na.rm = TRUE),
+    sd = sd(weight_gain, na.rm = TRUE),
+    sample_size = n(),  # This adds the sample size for each group
+    .groups = 'drop'
+  )
+mean(full_data$weight_gain)
+
+
+
+# can check different variable combinations for the neg bin model
+negbin_lm2 <- glm.nb(round(all_trout) ~ weight_gain, data = full_data)
+negbin_lm3 <- glm.nb(round(all_trout) ~ temp, data = full_data)
+negbin_lm4 <- glm.nb(round(all_trout) ~ fasting_period, data = full_data)
+negbin_lm5 <- glm.nb(round(all_trout) ~ days_attached, data = full_data)
+negbin_lm6 <- glm.nb(round(all_trout) ~ temp * fasting_period, data = full_data)
+negbin_lm7 <- glm.nb(round(all_trout) ~ weight_gain + temp * fasting_period, data = full_data)
+negbin_lm8 <- glm.nb(round(all_trout) ~ temp * fasting_period + days_attached, data = full_data)
+negbin_lm9 <- glm.nb(round(all_trout) ~ weight_gain + temp * fasting_period + days_attached, data = full_data)
+negbin_lm_null <- glm.nb(round(all_trout) ~ 1, data = full_data)
+
+aic_df <- AIC(negbin_lm, negbin_lm2, negbin_lm3, negbin_lm4, negbin_lm5, 
+    negbin_lm6, negbin_lm7, negbin_lm8, negbin_lm9, negbin_lm_null)
+
+model_descriptions <- c("weight_gain + temp + fasting_period + days_attached",
+                        "weight_gain",
+                        "temp",
+                        "fasting_period",
+                        "days_attached",
+                        "temp * fasting_period",
+                        "weight_gain + temp * fasting_period",
+                        "temp * fasting_period + days_attached",
+                        "weight_gain + temp * fasting_period + days_attached",
+                        "null_model")
+
+aic_df$model <- model_descriptions
+
+arrange(aic_df, AIC)
+
+# add delta AIC
+aic_df <- aic_df %>%
+  arrange(AIC) %>%
+  mutate(Delta_AIC = round(AIC - min(AIC), 2))
+
+aic_df
+
+
+
+# coefficients
+best_model <- glm.nb(round(all_trout) ~ temp * fasting_period, data = full_data)
+summary(best_model)
+
+1-exp(-0.118774) #temp
+1-exp(0.007693) #interaction
+
+
+# deviance
+null_deviance <- best_model$null.deviance
+residual_deviance <- best_model$deviance
+
+# calculate explained deviance (pseudo R-squared)
+explained_deviance <- 1 - (residual_deviance / null_deviance)
+explained_deviance
+
+#mcfaddens R-squared
+pR2(best_model)
+
+
+
 
 
 
