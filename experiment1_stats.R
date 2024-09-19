@@ -367,8 +367,7 @@ arrange(aic_df, AIC)
 aic_df <- aic_df %>%
   arrange(AIC) %>%
   mutate(Delta_AIC = round(AIC - min(AIC), 2))
-
-aic_df
+aic_df <- aic_df[c(3,1,2,4)]
 
 
 
@@ -390,6 +389,16 @@ explained_deviance
 
 #mcfaddens R-squared
 pR2(best_model)
+
+
+# Trying with MuMIn and dredge
+library(MuMIn)
+
+global_model <- glm.nb(round(all_trout) ~ weight_gain + temp * fasting_period + days_attached, na.action = na.fail, data = full_data)
+dredge_model <- dredge(global_model)
+
+dredge_df <- data.frame(dredge_model)
+write.csv(dredge_df, file = "negative binomial predictor table exp1.csv", row.names = FALSE)
 
 
 
