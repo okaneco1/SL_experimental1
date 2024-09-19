@@ -383,7 +383,7 @@ occu_m9 <- occu(formula = ~ fasting_period + days_attached ~1, data = cov_occu)
 
 # checking fit
 fit <- fitList('psi(.)p(.)' = occu_null,
-               'psi(.)p(temp + fasting_period)' = occu_m2,
+               'psi(.)p(temp * fasting_period)' = occu_m2,
                'psi(.)p(temp + fasting_period + temp*fasting_period)' = occu_m3,
                'psi(.)p(fasting_period)' = occu_m4,
                'psi(.)p(temp)' = occu_m5,
@@ -391,7 +391,11 @@ fit <- fitList('psi(.)p(.)' = occu_null,
                'psi(.)p(weight_gain)' = occu_m7,
                'psi(.)p(temp + fasting_period + weight_gain + days_attached)' = occu_m8,
                'psi(.)p(fasting_period + days_attached)' = occu_m9)
-modSel(fit)
+mod_sel <- modSel(fit)
+
+# write out model selection
+modSel_df <- as.data.frame(mod_sel@Full)
+write.csv(modSel_df, file = "model selection table occupancy exp1.csv", row.names = FALSE)
 
 # looking at just fasting period model
 preds1 <- predict(occu_m4, type ="det", new = data.frame(fasting_period = c(0:30)))
@@ -480,4 +484,10 @@ ggplot(data = preds_single, aes(x = fasting_period, y = Predicted)) +
        y = "Detection Probability") +
   theme_minimal()
 
+
+
+
+
+
+# False Detections
 
