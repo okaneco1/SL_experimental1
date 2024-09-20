@@ -372,25 +372,49 @@ summary(cov_occu)
 
 # set up various models
 occu_null <- occu(formula = ~ 1 ~1, data = cov_occu)
-occu_m2 <- occu(formula = ~ temp + fasting_period ~1, data = cov_occu)
-occu_m3 <- occu(formula = ~ temp * fasting_period ~1, data = cov_occu)
-occu_m4 <- occu(formula = ~ fasting_period ~1, data = cov_occu)
-occu_m5 <- occu(formula = ~ temp ~1, data = cov_occu)
-occu_m6 <- occu(formula = ~ temp + fasting_period + weight_gain ~1, data = cov_occu)
-occu_m7 <- occu(formula = ~ weight_gain ~1, data = cov_occu)
-occu_m8 <- occu(formula = ~ temp + fasting_period + weight_gain + days_attached ~1, data = cov_occu)
-occu_m9 <- occu(formula = ~ fasting_period + days_attached ~1, data = cov_occu)
+occu_m1 <- occu(formula = ~ temp ~ 1, data = cov_occu)
+occu_m2 <- occu(formula = ~ fasting_period ~ 1, data = cov_occu)
+occu_m3 <- occu(formula = ~ days_attached ~ 1, data = cov_occu)
+occu_m4 <- occu(formula = ~ weight_gain ~ 1, data = cov_occu)
+occu_m5 <- occu(formula = ~ temp + fasting_period ~ 1, data = cov_occu)
+occu_m6 <- occu(formula = ~ temp + days_attached ~ 1, data = cov_occu)
+occu_m7 <- occu(formula = ~ temp + weight_gain ~ 1, data = cov_occu)
+occu_m8 <- occu(formula = ~ fasting_period + days_attached ~ 1, data = cov_occu)
+occu_m9 <- occu(formula = ~ fasting_period + weight_gain ~ 1, data = cov_occu)
+occu_m10 <- occu(formula = ~ days_attached + weight_gain ~ 1, data = cov_occu)
+occu_m11 <- occu(formula = ~ temp + fasting_period + days_attached ~ 1, data = cov_occu)
+occu_m12 <- occu(formula = ~ temp + fasting_period + weight_gain ~ 1, data = cov_occu)
+occu_m13 <- occu(formula = ~ temp + days_attached + weight_gain ~ 1, data = cov_occu)
+occu_m14 <- occu(formula = ~ fasting_period + days_attached + weight_gain ~ 1, data = cov_occu)
+occu_m15 <- occu(formula = ~ temp + fasting_period + days_attached + weight_gain ~ 1, data = cov_occu)
+occu_m16 <- occu(formula = ~ temp * fasting_period ~ 1, data = cov_occu)
 
 # checking fit
-fit <- fitList('psi(.)p(.)' = occu_null,
-               'psi(.)p(temp * fasting_period)' = occu_m2,
-               'psi(.)p(temp + fasting_period + temp*fasting_period)' = occu_m3,
-               'psi(.)p(fasting_period)' = occu_m4,
-               'psi(.)p(temp)' = occu_m5,
-               'psi(.)p(temp + fasting_period + weight_gain)' = occu_m6,
-               'psi(.)p(weight_gain)' = occu_m7,
-               'psi(.)p(temp + fasting_period + weight_gain + days_attached)' = occu_m8,
-               'psi(.)p(fasting_period + days_attached)' = occu_m9)
+fit <- fitList(
+  'psi(.)p(.)' = occu_null,  # null model
+  
+  # single variable models
+  'psi(.)p(temp)' = occu_m1,
+  'psi(.)p(fasting_period)' = occu_m2,
+  'psi(.)p(days_attached)' = occu_m3,
+  'psi(.)p(weight_gain)' = occu_m4,
+  # two variable models
+  'psi(.)p(temp + fasting_period)' = occu_m5,
+  'psi(.)p(temp + days_attached)' = occu_m6,
+  'psi(.)p(temp + weight_gain)' = occu_m7,
+  'psi(.)p(fasting_period + days_attached)' = occu_m8,
+  'psi(.)p(fasting_period + weight_gain)' = occu_m9,
+  'psi(.)p(days_attached + weight_gain)' = occu_m10,
+  # three variable models
+  'psi(.)p(temp + fasting_period + days_attached)' = occu_m11,
+  'psi(.)p(temp + fasting_period + weight_gain)' = occu_m12,
+  'psi(.)p(temp + days_attached + weight_gain)' = occu_m13,
+  'psi(.)p(fasting_period + days_attached + weight_gain)' = occu_m14,
+  # four variable model
+  'psi(.)p(temp + fasting_period + days_attached + weight_gain)' = occu_m15,
+  # interaction model
+  'psi(.)p(temp * fasting_period)' = occu_m16
+)
 mod_sel <- modSel(fit)
 
 # write out model selection
