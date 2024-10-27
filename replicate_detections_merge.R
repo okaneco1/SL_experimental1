@@ -7,12 +7,8 @@
 #----- libraries
 library(tidyverse)
 library(readxl)
-library(nnet)
-library(broom)
 library(patchwork)
 library(sjPlot)
-library(brglm2)
-library(lmtest)
 library(geomtextpath)
 
 
@@ -127,11 +123,6 @@ full_detection_data <- full_detection_data %>%
          initial_weight = `Initial Weight(g)`)
 
 
-
-
-
-#----- statistical analyses
-
 # set categorical variables as factors 
 full_detection_data$temp <- factor(full_detection_data$temp,
                                    levels = c(5, 10, 15))
@@ -140,88 +131,11 @@ full_detection_data$fasting_period <- factor(full_detection_data$fasting_period,
 full_detection_data$combined_detection <- factor(full_detection_data$combined_detection,
                                                  levels = c(0, 1, 2))
 
-# trying with binomial distributions
-# first, for detection in both replicates
-
 # create additional data column for both detections (and label)
 full_detection_data$both_det <- ifelse(full_detection_data$combined_detection == 2, 1, 0)
 full_detection_data$both_det <- factor(full_detection_data$both_det,
                                        levels = c(0, 1),
                                        labels = c("no detection", "detection"))
-
-
-# model selection
-# null
-m_null <- glm(both_det ~ 1, family = "binomial", data = full_detection_data)
-
-# initial model
-m1 <- glm(both_det ~ temp + fasting_period + weight_gain/initial_weight + days_attached, family = "binomial", data = full_detection_data)
-m2 <- glm(both_det ~ temp * fasting_period + weight_gain/initial_weight + days_attached, family = "binomial", data = full_detection_data)
-m3 <- glm(both_det ~ temp * fasting_period + weight_gain * days_attached, family = "binomial", data = full_detection_data)
-
-anova(m1, m2, test = "LRT") # significant
-anova(m2, m3, test = "LRT") 
-
-# compare against simplified models
-m_temp <- glm(both_det ~ temp, family = "binomial", data = full_detection_data)
-m_fast <- glm(both_det ~ fasting_period, family = "binomial", data = full_detection_data)
-m_weight <- glm(both_det ~ weight_gain/initial_weight, family = "binomial", data = full_detection_data)
-m_attached <- glm(both_det ~ days_attached, family = "binomial", data = full_detection_data)
-
-anova(m_temp, m2, test = "LRT")
-anova(m_fast, m2, test = "LRT")
-anova(m_weight, m2, test = "LRT")
-anova(m_attached, m2, test = "LRT") # all are significant
-
-# compare against slightly more complex models
-m_weight2 <- glm(both_det ~ temp * fasting_period + days_attached, family = "binomial", data = full_detection_data)
-m_attached2 <- glm(both_det ~ temp * fasting_period + weight_gain/initial_weight, family = "binomial", data = full_detection_data)
-
-anova(m_weight2, m2, test = "LRT") # weight doesn't seem to improve model
-anova(m_attached2, m2, test = "LRT") # significant
-
-# isolate weight compared to temp/fasting period
-m_temp_fast <- glm(both_det ~ temp * fasting_period, family = "binomial", data = full_detection_data)
-anova(m_temp_fast, m_attached2, test = "LRT") # addition of weight is not significant
-
-# isolate days attached
-m_attached3 <- glm(both_det ~ temp * fasting_period + days_attached, family = "binomial", data = full_detection_data)
-anova(m_temp_fast, m_attached3, test = "LRT") # addition of days attached is significant
-
-# can set as final model
-m_final <- glm(both_det ~ temp * fasting_period + days_attached, family = "binomial", data = full_detection_data)
-
-# is interaction still significant?
-m_final_nointer <- glm(both_det ~ temp + fasting_period + days_attached, family = "binomial", data = full_detection_data)
-anova(m_final_nointer, m_final, test = "LRT") # yes
-
-# summary
-summary(m_final)
-
-
-# only days_attached is significant here, but this is comparing variable levels of both
-# fasting period and temperature, not overall effects of fasting period and temperature
-
-# can use no-interaction model to compare overall effects with isolated effect model
-m_final_temp <- glm(both_det ~ fasting_period + days_attached, family = "binomial", data = full_detection_data)
-m_final_fast <- glm(both_det ~ temp + days_attached, family = "binomial", data = full_detection_data)
-
-# is temperature overall significant?
-anova(m_final_temp, m_final_nointer, test = "LRT") # no
-anova(m_final_temp, m_final, test = "LRT") # but, yes if included as an interaction
-
-# is fasting period overall significant?
-anova(m_final_fast, m_final_nointer, test = "LRT") # yes
-anova(m_final_fast, m_final, test = "LRT") # yes
-
-
-# so, overall, temperature is significant overall in its interaction with fasting
-# period (in detection for both replicates) and fasting period is also significant
-
-
-
-
-
 
 
 #------ can now look for patterns where detection is in *at least one* replicate
@@ -231,67 +145,6 @@ full_detection_data$one_det <- ifelse(full_detection_data$combined_detection == 
 full_detection_data$one_det <- factor(full_detection_data$one_det,
                                       levels = c(0, 1),
                                       labels = c("no detection", "detection"))
-
-# model selection
-m_null <- glm(one_det ~ 1, family = "binomial", data = full_detection_data)
-
-# initial model
-m1 <- glm(one_det ~ temp + fasting_period + weight_gain/initial_weight + days_attached, family = "binomial", data = full_detection_data)
-m2 <- glm(one_det ~ temp * fasting_period + weight_gain/initial_weight + days_attached, family = "binomial", data = full_detection_data)
-m3 <- glm(one_det ~ temp * fasting_period + weight_gain * days_attached, family = "binomial", data = full_detection_data)
-
-anova(m1, m2, test = "LRT") # not significant
-anova(m2, m3, test = "LRT") 
-
-summary(m1) # only days attached is significant overall
-# can investigate whether temp or fasting period are significant overall
-
-m1_weight <- glm(one_det ~ temp + fasting_period + days_attached, family = "binomial", data = full_detection_data)
-m1_temp <- glm(one_det ~ fasting_period + weight_gain/initial_weight + days_attached, family = "binomial", data = full_detection_data)
-m1_fasting <- glm(one_det ~ temp + weight_gain/initial_weight + days_attached, family = "binomial", data = full_detection_data)
-
-# are either weight, temp or fasting period significant overall?
-anova(m1_weight, m1, test = "LRT") # no
-anova(m1_temp, m1, test = "LRT") # no
-anova(m1_fasting, m1, test = "LRT") # yes
-
-# only temperature in this case 
-# so, try removing weight and fasting from the model and compare via AIC
-m1_temp_attach <- glm(one_det ~ temp + days_attached, family = "binomial", data = full_detection_data)
-
-AIC(m1, m1_weight, m1_temp_fast, m1_temp_attach) # temp_attach is best (lowest df and AIC)
-
-# do interactions improve fit?
-m1_temp_fast_inter <- glm(one_det ~ temp * fasting_period + days_attached, family = "binomial", data = full_detection_data)
-AIC(m1_temp_attach, m1_weight, m1, m1_temp_fast_inter) # no
-
-
-
-#-----------------------
-# ordinal logistic model selection (with bias reduction)
-
-# null
-olm_null <- bracl(combined_detection ~ 1, data = full_detection_data)
-# test interaction
-olm1 <- bracl(combined_detection ~ temp + fasting_period + days_attached, data = full_detection_data)
-olm2 <- bracl(combined_detection ~ temp * fasting_period + days_attached, data = full_detection_data)
-# test significance of variables
-olm3 <- bracl(combined_detection ~ fasting_period + days_attached, data = full_detection_data)
-olm4 <- bracl(combined_detection ~ temp + days_attached, data = full_detection_data)
-olm5 <- bracl(combined_detection ~ temp + fasting_period, data = full_detection_data)
-
-# using likelihood ratio test to compare nested models for overall significance
-# interaction significance
-lrtest(olm1, olm_null) # improvement over null
-lrtest(olm2, olm1) # interaction is not significant
-
-# variable significance
-lrtest(olm1, olm3) # temp not significant
-lrtest(olm1, olm4) # fasting period is significant
-lrtest(olm1, olm5) # days attached is significant
-
-summary(olm1)
-
 
 
 
@@ -345,9 +198,10 @@ ggplot(full_detection_data, aes(x = factor(temp), fill = factor(combined_detecti
 #plot_layout(guides = "collect") 
 
 
+#--------------------------------------------------------
+# OCCUPANCY MODEL
+#--------------------------------------------------------
 
-
-#------ OCCUPANCY MODEL
 library(unmarked)
 
 # set up detection matrix (replicates)
@@ -422,7 +276,7 @@ modSel_df <- as.data.frame(mod_sel@Full)
 write.csv(modSel_df, file = "model selection table occupancy exp1.csv", row.names = FALSE)
 
 # looking at just fasting period model
-preds1 <- predict(occu_m4, type ="det", new = data.frame(fasting_period = c(0:30)))
+preds1 <- predict(occu_m2, type ="det", new = data.frame(fasting_period = c(0:30)))
 preds1$fasting_period <- seq(0, 30, by = 1)
 
 ggplot(data = preds1, aes(x = fasting_period, y = Predicted)) +
@@ -438,12 +292,13 @@ ggplot(data = preds1, aes(x = fasting_period, y = Predicted)) +
         axis.title.y = element_text(face = "bold"))
 
 
-
+1 - exp(-0.0395) # fasting days
+exp(0.5362) # days attached
 
 # looking at fasting period + days attached model
 
 # back transform
-backTransform(occu_m9, type = "state")
+backTransform(occu_m8, type = "state")
 
 # generate a prediction grid for both variables
 days_attached <- seq(0, 10, length.out = 100)
@@ -453,7 +308,7 @@ fasting_period <- seq(0, 30, length.out = 100)
 pred_grid <- expand.grid(days_attached = days_attached, fasting_period = fasting_period)
 
 # set up predictions
-preds2 <- predict(occu_m9, type = "det", newdata = pred_grid)
+preds2 <- predict(occu_m8, type = "det", newdata = pred_grid)
 pred_grid$preds <- preds2$Predicted # add to grid
 # visualize data
 
@@ -471,47 +326,13 @@ ggplot(pred_grid, aes(x = fasting_period, y = days_attached, fill = preds)) +
 ggplot(pred_grid, aes(x = fasting_period, y = days_attached, z = preds)) +
   geom_contour_filled(breaks = seq(0, 1, by = 0.1)) +
   geom_textcontour(linecolour = "#242424", textcolour = "#242424") + 
-  labs(title = "Predicted Host Detection Probability",
-       x = "Fasting Period (Days)",
+  labs(x = "Fasting Period (Days)",
        y = "Days Attached",
-       fill = "Probability") +
+       fill = "Predicted Host\nDNA Detection\nProbability") +
+  scale_x_continuous(limits = c(1, NA), breaks = seq(1, 30, by = 4), expand = c(0, 0)) +  # Start x-axis at 1
+  scale_y_continuous(limits = c(NA, 7), expand = c(0, 0)) +  # End y-axis at 7
   theme_minimal() +
   theme(plot.title = element_text(face = "bold", size = 16),
         axis.title.x = element_text(face = "bold", size = 12),
         axis.title.y = element_text(face = "bold", size = 12))
-
-
-
-
-# Occupancy Model for a Single Replicate
-detections_single <- data.frame(rep1 = full_detection_data$detection_rep1)
-# Create the occupancy frame object with the modified detection data
-cov_count_single <- unmarkedFramePCount(y = detections_single, siteCovs = site_covs)
-summary(cov_count_single)
-
-# Set up the model using the single replicate
-count_m4_single <- pcount(formula = ~ fasting_period ~1, data = cov_count_single)
-
-# Checking fit with only the single replicate model
-fit_single <- fitList('lambda(.)p(fasting_period)' = count_m4_single)
-
-# Make predictions with the single replicate model
-preds_single <- predict(count_m4_single, type = "det", newdata = data.frame(fasting_period = c(0:30)))
-preds_single$fasting_period <- seq(0, 30, by = 1)
-
-# Plot predictions
-ggplot(data = preds_single, aes(x = fasting_period, y = Predicted)) +
-  geom_smooth(stat = "smooth") +
-  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
-  labs(title = "Predicted Host Detection Probability with Single Replicate",
-       x = "Fasting Period (Days)",
-       y = "Detection Probability") +
-  theme_minimal()
-
-
-
-
-
-
-# False Detections
 
