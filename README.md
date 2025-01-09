@@ -5,5 +5,5 @@ These data correspond to analyses performed to examine the effects of temperatur
 ### Methods
 
 Sea lamprey were fed lake trout in a controlled setting at three temperatures (5, 10, and 15°C). 
-After seven days of feeding, lamprey were then separated into five fasting period groups (0, 5, 10, 20, and 30 days) prior to collection of dietary samples.
-Dietary DNA was collected via a swab, extracted, amplified, barcoded and sequenced. 
+After seven days of feeding, lamprey were then separated into five fasting period groups (0, 5, 10, 20, and 30 days) before dietary samples were collected..
+Dietary DNA was collected via a swab, extracted, amplified, barcoded, and sequenced. 
