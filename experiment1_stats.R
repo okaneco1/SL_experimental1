@@ -11,6 +11,8 @@ library(lme4)
 library(RColorBrewer)
 library(multcomp)
 library(ggpubr)
+library(MASS)
+library(pscl)
 
 
 #----- data setup
@@ -45,6 +47,14 @@ full_data$total_reads <- rowSums(full_data[, 2:4], na.rm = TRUE)
 full_data <- full_data %>%
   mutate(all_trout = Salvelinus_namaycush + Salmonidae_unclassified)
 
+# visualization
+ggplot(full_data, aes(x = sample, y = all_trout))+
+  geom_col(fill = "#306352") +
+  labs(x = "Sample",
+       y = "Lake Trout Sequence Reads") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 
 #----- basic data
@@ -56,20 +66,6 @@ sd(full_data$`Initial Weight(g)`) # 0.9888862
 
 
 # -----------------------  STATISTICAL ANALYSES -----------------------------
-
-# aov(lm(...))
-
-#----------- ANOVA and pairwise comparisons -----------
-
-aov1 <- aov(all_trout ~ as.factor(temp), data = full_data) 
-aov2 <- aov(all_trout ~ temp_f * as.factor(fasting_period), data = full_data) 
-aov3 <- aov(all_trout ~ as.factor(temp) * as.factor(fasting_period) + weight_gain, data = full_data)
-#aov2_log <- aov(log(all_trout) ~ as.factor(temp) * as.factor(fasting_period), data = full_data) 
-
-summary(aov2)
-
-anova(aov2, aov3) # weight gain might add significant improvement to model
-
 #---- testing assumptions
 library(car)
 #verifying normality
@@ -108,8 +104,6 @@ HSD.test(aov2, trt = c("as.factor(temp)", "as.factor(fasting_period)"), console 
 # plot
 par(mar = c(4.5, 7, 3, 2))
 #plot(TukeyHSD(aov2, which = "as.factor(temp):as.factor(fasting_period)"), las = 2)
-
-
 
 
 #--------------- Linear Regressions ---------
@@ -181,7 +175,7 @@ ggline(full_data, x = "fasting_period", y = "all_trout",
        color = "temp_f", add = c("mean_se"), position = position_dodge(width = 0.1)) +
   labs(y = "Lake Trout Sequence Read Count", 
        x = "Fasting Period (Days)",
-       title = "Lake Trout Sequence Read Count vs Fasting Days",
+       #title = "Lake Trout Sequence Read Count vs Fasting Days",
        color = "Temperature (°C)") +
   theme(legend.position = c(0.7, 0.8),
         plot.title = element_text(face = "bold"),  
@@ -199,7 +193,9 @@ full_data[full_data$fasting_period == 30 & full_data$temp_f == 15 & full_data$al
 
  
 # weight gain comparison
+cor.test(full_data$weight_gain, full_data$Salvelinus_namaycush, use = "complete.obs")
 cor_coeff_wg <- cor(full_data$weight_gain, full_data$Salvelinus_namaycush, use = "complete.obs")
+
 
 ggplot(full_data, aes(x = weight_gain, y = Salvelinus_namaycush)) +
   geom_point() +
@@ -237,6 +233,7 @@ ggplot(full_data, aes(x = temp, y = weight_gain)) +
 
 
 # weight and days attached
+cor.test(full_data$days_attached, full_data$weight_gain)
 correlation <- cor(full_data$days_attached, full_data$weight_gain)
 
 ggplot(full_data, aes(x = days_attached, y = weight_gain)) +
@@ -249,10 +246,10 @@ ggplot(full_data, aes(x = days_attached, y = weight_gain)) +
     plot.title = element_text(face = "bold", size = 16), 
     axis.title.x = element_text(face = "bold"),          
     axis.title.y = element_text(face = "bold")           
-  ) +
-  annotate("text", x = max(full_data$days_attached) - 5, y = max(full_data$weight_gain) - 1, 
-           label = paste("Correlation: ", round(correlation, 2)), 
-           color = "black", size = 4, hjust = 1)
+  ) #+
+  #annotate("text", x = max(full_data$days_attached) - 5, y = max(full_data$weight_gain) - 1, 
+           #label = paste("Correlation: ", round(correlation, 2)), 
+           #color = "black", size = 4, hjust = 1)
 
 
 
@@ -263,9 +260,7 @@ tukey_results <- TukeyHSD(temp_weight_anova)
 plot(tukey_results)
 
 
-# ------- LINEAR MODELS COMPARING READ COUNT
-library(MASS)
-library(pscl)
+# ------- MODEL SELECTION
 
 # viewing data
 hist(log(full_data$all_trout))
@@ -293,7 +288,7 @@ ggplot(full_data, aes(x = temp, y = all_trout)) +
   theme_minimal()
 
 
-# setting up linear models
+# setting up  models
 lm1 <- lm(all_trout ~ weight_gain + fasting_period * temp + days_attached, data = full_data)
 poisson_model <- glm(all_trout ~ weight_gain + fasting_period * temp + days_attached, family = poisson, data = full_data)
 negbin_lm <- glm.nb(round(all_trout) ~ weight_gain + temp * fasting_period + days_attached, data = full_data)
@@ -320,6 +315,40 @@ vuong(zinb_lm, negbin_lm)
 # zero-inflated negative binomial
 
 (1 - exp(-0.021))*100 # 2.078104
+
+# visual table for model comparisons
+model_names <- c("Linear Model", "Poisson GLM", "Negative Binomial GLM", "Zero-Inflated NB")
+aic_values <- c(
+  AIC(lm1),
+  AIC(poisson_model),
+  AIC(negbin_lm),
+  AIC(zinb_lm)
+)
+
+# create data frame
+aic_table <- data.frame(
+  Model = model_names,
+  AIC = aic_values
+)
+
+# calculate ΔAIC and AIC weights
+aic_table$Delta_AIC <- aic_table$AIC - min(aic_table$AIC)
+aic_table$AIC_weight <- exp(-0.5 * aic_table$Delta_AIC)
+aic_table$AIC_weight <- aic_table$AIC_weight / sum(aic_table$AIC_weight)
+
+# sort 
+aic_table <- aic_table[order(aic_table$AIC), ]
+
+# round
+aic_table$AIC <- round(aic_table$AIC, 2)
+aic_table$Delta_AIC <- round(aic_table$Delta_AIC, 2)
+aic_table$AIC_weight <- round(aic_table$AIC_weight, 3)
+
+# table and output
+aic_table
+write.csv(aic_table, "aic_model_comparison.csv", row.names = FALSE)
+
+
 
 
 full_data %>%
@@ -367,13 +396,16 @@ arrange(aic_df, AIC)
 aic_df <- aic_df %>%
   arrange(AIC) %>%
   mutate(Delta_AIC = round(AIC - min(AIC), 2))
-aic_df <- aic_df[c(3,1,2,4)]
+aic_df_reorder <- aic_df[c(3,1,2,4)]
+
+# write out
+write.csv(aic_df_reorder, file = "experiment1_negbin_model_selection.csv")
 
 
 
 # coefficients
 best_model <- glm.nb(round(all_trout) ~ temp * fasting_period, data = full_data)
-summary(best_model)
+summary(negbin_lm6)
 
 1-exp(-0.118774) #temp
 1-exp(0.007693) #interaction
@@ -391,7 +423,7 @@ explained_deviance
 pR2(best_model)
 
 
-# Trying with MuMIn and dredge
+# using MuMIn and dredge
 library(MuMIn)
 
 global_model <- glm.nb(round(all_trout) ~ weight_gain + temp * fasting_period + days_attached, na.action = na.fail, data = full_data)
@@ -399,6 +431,15 @@ dredge_model <- dredge(global_model)
 
 dredge_df <- data.frame(dredge_model)
 write.csv(dredge_df, file = "negative binomial predictor table exp1.csv", row.names = FALSE)
+
+
+
+#------- misc.
+
+# investigating read counts at 30 days
+filtered_30_days <- full_data %>%
+  filter(fasting_period == 30) %>%
+  select(sample, all_trout, fasting_period, temp, )
 
 
 
