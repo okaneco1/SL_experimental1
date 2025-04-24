@@ -349,8 +349,6 @@ aic_table
 write.csv(aic_table, "aic_model_comparison.csv", row.names = FALSE)
 
 
-
-
 full_data %>%
   group_by(temp, fasting_period) %>%
   summarize(
