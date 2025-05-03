@@ -47,13 +47,32 @@ full_data$total_reads <- rowSums(full_data[, 2:4], na.rm = TRUE)
 full_data <- full_data %>%
   mutate(all_trout = Salvelinus_namaycush + Salmonidae_unclassified)
 
+# organize into table for visualization
+lt_sequences_table_simplified <- full_data %>%
+  select(sample, all_trout, temp, fasting_period) %>%
+  arrange(temp, fasting_period)
+
+# set labels for fasting days
+fasting_labels <- lt_sequences_table_simplified %>%
+  distinct(sample, fasting_period) %>%
+  deframe() 
+
+# refactor fasting days for proper order
+lt_sequences_table_simplified <- lt_sequences_table_simplified %>%
+  mutate(fasting_period = as.numeric(fasting_period)) %>%
+  mutate(sample = factor(sample, levels = unique(sample[order(fasting_period)])))
+
 # visualization
-ggplot(full_data, aes(x = sample, y = all_trout))+
-  geom_col(fill = "#306352") +
-  labs(x = "Sample",
+ggplot(lt_sequences_table_simplified, aes(x = sample, y = all_trout, fill = as.factor(temp)))+
+  geom_col() +
+  scale_x_discrete(labels = fasting_labels) +
+  labs(x = "Fasting Days",
        y = "Lake Trout Sequence Reads") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme_minimal(base_family = "Helvetica") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1,),
+        panel.grid.major = element_line(color = alpha("gray", 0.1)),
+        panel.grid.minor = element_line(color = alpha("gray", 0.1))
+        )
 
 
 
