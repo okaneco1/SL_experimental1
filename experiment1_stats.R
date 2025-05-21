@@ -11,7 +11,7 @@ library(lme4)
 library(RColorBrewer)
 library(multcomp)
 library(ggpubr)
-library(MASS)
+#library(MASS)
 library(pscl)
 
 
@@ -49,7 +49,7 @@ full_data <- full_data %>%
 
 # organize into table for visualization
 lt_sequences_table_simplified <- full_data %>%
-  select(sample, all_trout, temp, fasting_period) %>%
+  dplyr::select(sample, all_trout, temp, fasting_period) %>%
   arrange(temp, fasting_period)
 
 # set labels for fasting days
@@ -156,6 +156,12 @@ sorted_data <- full_data %>%
   dplyr::select(sample, all_trout, Petromyzontidae_unclassified, temp, fasting_period) %>%
   dplyr::arrange(temp, fasting_period)
 
+# count samples
+sorted_data %>%
+  dplyr::count(temp, fasting_period, name = "n_samples") %>%
+  dplyr::arrange(fasting_period, temp)
+
+
 
 # first split by temp
 custom_labels <- c('5' = 'Temperature = 5°C', '10' = 'Temperature = 10°C', '15' = 'Temperature = 15°C')
@@ -237,19 +243,24 @@ ggplot(full_data, aes(x = fasting_period, y = weight_loss)) +
 
 
 # weight gain and temperature
-ggplot(full_data, aes(x = temp, y = weight_gain)) +
-  geom_boxplot(aes(group = temp), outlier.shape = NA) +
-  #geom_smooth(method = "lm", se = FALSE, color = "deepskyblue") +
-  geom_jitter(width = 0.2, alpha = 0.3) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "darkgreen", alpha = 0.5) +
+ggplot(full_data, aes(x = temp, y = weight_gain, color = as.factor(temp), fill = as.factor(temp))) +
+  geom_boxplot(aes(group = temp), outlier.shape = NA, alpha = 0.15) +
+  geom_jitter(aes(color = as.factor(temp)), width = 0.2, show.legend = FALSE, alpha=0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "#2e1566") +
   labs(x = "Temperature (°C)", y = "Weight Gain (g)") +
-  theme_minimal() +
+  scale_fill_manual(values = c("5" = "#4590bf", "10" = "#45d9a8", "15" = "#e39f4d")) +
+  scale_color_manual(values = c("5" = "#4590bf", "10" = "#45d9a8", "15" = "#e39f4d")) +
+  theme_minimal(base_family = "Mukta") +
   theme(
-    plot.title = element_text(face = "bold", size = 16), 
-    axis.title.x = element_text(face = "bold"),          
-    axis.title.y = element_text(face = "bold")           
+    axis.title.x = element_text(size = 12, face = "bold"),          
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10, family = "Mukta"),
+    panel.grid.major = element_line(color = alpha("gray", 0.1)),
+    panel.grid.minor = element_line(color = alpha("gray", 0.1)),
+    axis.line = element_line(color = "grey30")
   )
 
+ggsave("weight_gain_vs_temp.png", dpi=300, height = 5, width = 5)
 
 # weight and days attached
 cor.test(full_data$days_attached, full_data$weight_gain)
