@@ -196,18 +196,27 @@ ggplot(full_data, aes(x = temp, y = all_trout, fill = factor(fasting_period))) +
   theme(strip.text = element_text(face = "bold", size = 12))
 
 # another way to plot
-ggline(full_data, x = "fasting_period", y = "all_trout", 
-       color = "temp_f", add = c("mean_se"), position = position_dodge(width = 0.1)) +
-  labs(y = "Lake Trout Sequence Read Count", 
-       x = "Fasting Period (Days)",
-       #title = "Lake Trout Sequence Read Count vs Fasting Days",
-       color = "Temperature (°C)") +
-  theme(legend.position = c(0.7, 0.8),
-        plot.title = element_text(face = "bold"),  
-        axis.title.x = element_text(face = "bold"),  
-        axis.title.y = element_text(face = "bold"),
-        legend.title = element_text(face = "bold")) +
-  scale_color_brewer(palette = "Set2")
+ggplot(full_data, aes(x = as.numeric(as.character(fasting_period)), y = all_trout, color = as.factor(temp_f))) +
+  stat_summary(fun = mean, geom = "line", size = 0.7, position = position_dodge(width = 0.5)) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 1, position = position_dodge(width = 0.5)) +
+  stat_summary(fun = mean, geom = "point", size = 2, position = position_dodge(width = 0.5)) +
+  geom_jitter(alpha = 0.2, width = 0.3, size = 1.5, show.legend = FALSE) +
+  scale_x_continuous(breaks = c(0, 5, 10, 20, 30), name = "Fasting Period (Days)") +
+  scale_color_manual(values = c("5" = "#4590bf", "10" = "#45d9a8", "15" = "#e39f4d"), name = "Temperature (°C)") +
+  labs(y = "Sequence Read Count (Lake Trout)") +
+  theme_minimal(base_family = "Mukta") +
+  theme(
+    axis.title.x = element_text(size = 12, face = "bold"),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10, family = "Mukta"),
+    legend.text = element_text(size = 11, family = "Mukta"),
+    legend.title = element_text(size = 12, face = "bold", family = "Mukta"),
+    panel.grid.major = element_line(color = alpha("gray", 0.1)),
+    panel.grid.minor = element_line(color = alpha("gray", 0.1)),
+    axis.line = element_line(color = "grey30")
+  )
+
+ggsave("LT_read_count_vs_fasting_period.png", dpi=300, height = 5, width = 8)
 
 # checking out outliers in 15°C / 30 days fasting
 ggplot(full_data, aes(x = fasting_period, y = all_trout, color = temp_f)) +
